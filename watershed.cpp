@@ -42,7 +42,6 @@ void watershedEx(InputArray _src, InputOutputArray _markers)
 {
     // Labels for pixels
     const int IN_QUEUE = -2; // Pixel visited
-
     // possible bit values = 2^8
     const int NQ = 256;
 
@@ -69,7 +68,7 @@ void watershedEx(InputArray _src, InputOutputArray _markers)
 
     // Create a new node with offsets mofs and iofs in queue idx
 #define ws_push(idx,mofs,iofs)          \
-    {                                       \
+        {                                       \
     if (!free_node)                    \
     free_node = allocWSNodes(storage); \
     node = free_node;                   \
@@ -79,14 +78,14 @@ void watershedEx(InputArray _src, InputOutputArray _markers)
     storage[node].img_ofs = iofs;       \
     if (q[idx].last)                   \
     storage[q[idx].last].next = node; \
-  else                                \
+    else                                \
   q[idx].first = node;            \
   q[idx].last = node;                 \
-    }
+        }
 
     // Get next node from queue idx
 #define ws_pop(idx,mofs,iofs)           \
-    {                                       \
+        {                                       \
     node = q[idx].first;                \
     q[idx].first = storage[node].next;  \
     if (!storage[node].next)           \
@@ -95,25 +94,25 @@ void watershedEx(InputArray _src, InputOutputArray _markers)
     free_node = node;                   \
     mofs = storage[node].mask_ofs;      \
     iofs = storage[node].img_ofs;       \
-    }
+        }
 
     // Get highest absolute channel difference in diff
 #define c_diff(ptr1,ptr2,diff)           \
-    {                                        \
+        {                                        \
     db = std::abs((ptr1)[0] - (ptr2)[0]); \
     dg = std::abs((ptr1)[1] - (ptr2)[1]); \
     dr = std::abs((ptr1)[2] - (ptr2)[2]); \
     diff = ws_max(db, dg);                \
     diff = ws_max(diff, dr);              \
     assert(0 <= diff && diff <= 255);  \
-    }
+        }
 
     //get absolute difference in diff
 #define c_gray_diff(ptr1,ptr2,diff)		\
-    {									\
+        {									\
     diff = std::abs((ptr1)[0] - (ptr2)[0]);	\
     assert(0 <= diff&&diff <= 255);		\
-    }
+        }
 
     CV_Assert(src.type() == CV_8UC3 || src.type() == CV_8UC1&& dst.type() == CV_32SC1);
     CV_Assert(src.size() == dst.size());
@@ -194,11 +193,10 @@ void watershedEx(InputArray _src, InputOutputArray _markers)
             }
         }
     }
-
     // find the first non-empty queue
     for (i = 0; i < NQ; i++)
-    if (q[i].first)
-        break;
+        if (q[i].first)
+            break;
 
     // if there is no markers, exit immediately
     if (i == NQ)
@@ -212,7 +210,7 @@ void watershedEx(InputArray _src, InputOutputArray _markers)
     for (;;)
     {
         int mofs, iofs;
-        int lab = 0, t, flag = 0;
+        int lab = 0, t;
         int* m;
         const uchar* ptr;
 
@@ -221,17 +219,13 @@ void watershedEx(InputArray _src, InputOutputArray _markers)
         if (q[active_queue].first == 0)
         {
             for (i = active_queue + 1; i < NQ; i++)
-            if (q[i].first)
-                break;
+                if (q[i].first)
+                    break;
             if (i == NQ)
             {
-                {
-                    vector<WSNode> temp;
-                    temp.swap(storage);
-                }
+                std::vector<WSNode>().swap(storage); 
                 break;
             }
-
             active_queue = i;
         }
 
@@ -240,11 +234,11 @@ void watershedEx(InputArray _src, InputOutputArray _markers)
         int top = 1, bottom = 1, left = 1, right = 1;
         if (0 <= mofs&&mofs < mstep)//pixel on the top
             top = 0;
-        else if (mofs%mstep == 0)//pixel in the left column
+        if ((mofs%mstep) == 0)//pixel in the left column
             left = 0;
-        else if ((mofs + 1) % mstep == 0)//pixel in the right column
+        if ((mofs + 1) % mstep == 0)//pixel in the right column
             right = 0;
-        else if (mstep*(size.height - 1) <= mofs && mofs < mstep*size.height - 1)//pixel on the bottom
+        if (mstep*(size.height - 1) <= mofs && mofs < mstep*size.height)//pixel on the bottom
             bottom = 0;
 
         // Calculate pointer to current pixel in input and marker image
@@ -252,135 +246,152 @@ void watershedEx(InputArray _src, InputOutputArray _markers)
         ptr = img + iofs;
         int diff, temp;
         // Check surrounding pixels for labels to determine label for current pixel
-        t = m[-1]; // Left
-        if (t > 0 && left){
-            lab = t;
-            if (channel == 3){
-                c_diff(ptr, ptr - channel, diff);
-            }
-            else{
-                c_gray_diff(ptr, ptr - channel, diff);
-            }
-        }
-        t = m[1]; // Right
-        if (t > 0 && right){
-            if (lab == 0){//and this point didn't be labeled before
+        if (left){//the left point can be visited
+            t = m[-1];
+            if (t > 0){
                 lab = t;
                 if (channel == 3){
-                    c_diff(ptr, ptr + channel, diff);
+                    c_diff(ptr, ptr - channel, diff);
                 }
                 else{
-                    c_gray_diff(ptr, ptr + channel, diff);
+                    c_gray_diff(ptr, ptr - channel, diff);
                 }
-            }
-            else if (t != lab){
-                flag = 1;//this point on the watershed line
-                if (channel == 3){
-                    c_diff(ptr, ptr + channel, temp);
-                }
-                else{
-                    c_gray_diff(ptr, ptr + channel, temp);
-                }
-                diff = ws_min(diff, temp);
-                if (diff == temp)
-                    lab = t;
             }
         }
-        t = m[-mstep]; // Top
-        if (t > 0 && top){
-            if (lab == 0){//and this point didn't be labeled before
-                lab = t;
-                if (channel == 3){
-                    c_diff(ptr, ptr - istep, diff);
-                }
-                else{
-                    c_gray_diff(ptr, ptr - istep, diff);
-                }
-            }
-            else if (t != lab){
-                flag = 1;//this point on the watershed line
-                if (channel == 3){
-                    c_diff(ptr, ptr - istep, temp);
-                }
-                else{
-                    c_gray_diff(ptr, ptr - istep, temp);
-                }
-                diff = ws_min(diff, temp);
-                if (diff == temp)
+        if (right){// Right point can be visited
+            t = m[1];
+            if (t > 0){
+                if (lab == 0){//and this point didn't be labeled before
                     lab = t;
+                    if (channel == 3){
+                        c_diff(ptr, ptr + channel, diff);
+                    }
+                    else{
+                        c_gray_diff(ptr, ptr + channel, diff);
+                    }
+                }
+                else if (t != lab){
+                    if (channel == 3){
+                        c_diff(ptr, ptr + channel, temp);
+                    }
+                    else{
+                        c_gray_diff(ptr, ptr + channel, temp);
+                    }
+                    diff = ws_min(diff, temp);
+                    if (diff == temp)
+                        lab = t;
+                }
             }
         }
-        t = m[mstep]; // Bottom
-        if (t > 0 && bottom){
-            if (lab == 0){
-                lab = t;
-            }
-            else if (t != lab){
-                flag = 1;//this point on the watershed line
-                if (channel == 3){
-                    c_diff(ptr, ptr + istep, temp);
-                }
-                else{
-                    c_gray_diff(ptr, ptr + istep, temp);
-                }
-                diff = ws_min(diff, temp);
-                if (diff == temp)
+        if (top){
+            t = m[-mstep]; // Top
+            if (t > 0){
+                if (lab == 0){//and this point didn't be labeled before
                     lab = t;
+                    if (channel == 3){
+                        c_diff(ptr, ptr - istep, diff);
+                    }
+                    else{
+                        c_gray_diff(ptr, ptr - istep, diff);
+                    }
+                }
+                else if (t != lab){
+                    if (channel == 3){
+                        c_diff(ptr, ptr - istep, temp);
+                    }
+                    else{
+                        c_gray_diff(ptr, ptr - istep, temp);
+                    }
+                    diff = ws_min(diff, temp);
+                    if (diff == temp)
+                        lab = t;
+                }
             }
         }
-
+        if (bottom){
+            t = m[mstep]; // Bottom
+            if (t > 0){
+                if (lab == 0){
+                    lab = t;
+                }
+                else if (t != lab){
+                    if (channel == 3){
+                        c_diff(ptr, ptr + istep, temp);
+                    }
+                    else{
+                        c_gray_diff(ptr, ptr + istep, temp);
+                    }
+                    diff = ws_min(diff, temp);
+                    if (diff == temp)
+                        lab = t;
+                }
+            }
+        }
         // Set label to current pixel in marker image
         assert(lab != 0);//lab must be labeled with a nonzero number
         m[0] = lab;
 
         // Add adjacent, unlabeled pixels to corresponding queue
-        if (m[-1] == 0 && left)//left pixel with marker 0
-        {
-            if (channel == 3){
-                c_diff(ptr, ptr - channel, t);
+        if (left){
+            if (m[-1] == 0)//left pixel with marker 0
+            {
+                if (channel == 3){
+                    c_diff(ptr, ptr - channel, t);
+                }
+                else{
+                    c_gray_diff(ptr, ptr - channel, t);
+                }
+                ws_push(t, mofs - 1, iofs - channel);
+                active_queue = ws_min(active_queue, t);
+                m[-1] = IN_QUEUE;
             }
-            else{
-                c_gray_diff(ptr, ptr - channel, t);
-            }
-            ws_push(t, mofs - 1, iofs - channel);
-            active_queue = ws_min(active_queue, t);
-            m[-1] = IN_QUEUE;
         }
-        if (m[1] == 0 && right)//right pixel with marker 0
+
+        if (right)
         {
-            if (channel == 3){
-                c_diff(ptr, ptr + channel, t);
+            if (m[1] == 0)//right pixel with marker 0
+            {
+                if (channel == 3){
+                    c_diff(ptr, ptr + channel, t);
+                }
+                else{
+                    c_gray_diff(ptr, ptr + channel, t);
+                }
+                ws_push(t, mofs + 1, iofs + channel);
+                active_queue = ws_min(active_queue, t);
+                m[1] = IN_QUEUE;
             }
-            else{
-                c_gray_diff(ptr, ptr + channel, t);
-            }
-            ws_push(t, mofs + 1, iofs + channel);
-            active_queue = ws_min(active_queue, t);
-            m[1] = IN_QUEUE;
         }
-        if (m[-mstep] == 0 && top)//top pixel with marker 0
+
+        if (top)
         {
-            if (channel == 3){
-                c_diff(ptr, ptr - istep, t);
+            if (m[-mstep] == 0)//top pixel with marker 0
+            {
+                if (channel == 3){
+                    c_diff(ptr, ptr - istep, t);
+                }
+                else{
+                    c_gray_diff(ptr, ptr - istep, t);
+                }
+                ws_push(t, mofs - mstep, iofs - istep);
+                active_queue = ws_min(active_queue, t);
+                m[-mstep] = IN_QUEUE;
             }
-            else{
-                c_gray_diff(ptr, ptr - istep, t);
-            }
-            ws_push(t, mofs - mstep, iofs - istep);
-            active_queue = ws_min(active_queue, t);
-            m[-mstep] = IN_QUEUE;
         }
-        if (m[mstep] == 0 && bottom)//down pixel with marker 0
-        {
-            if (channel == 3){
-                c_diff(ptr, ptr + istep, t);
+
+        if (bottom){
+            if (m[mstep] == 0)//down pixel with marker 0
+            {
+                if (channel == 3){
+                    c_diff(ptr, ptr + istep, t);
+                }
+                else{
+                    c_gray_diff(ptr, ptr + istep, t);
+                }
+                ws_push(t, mofs + mstep, iofs + istep);
+                active_queue = ws_min(active_queue, t);
+                m[mstep] = IN_QUEUE;
             }
-            else{
-                c_gray_diff(ptr, ptr + istep, t);
-            }
-            ws_push(t, mofs + mstep, iofs + istep);
-            active_queue = ws_min(active_queue, t);
-            m[mstep] = IN_QUEUE;
         }
     }
 }
